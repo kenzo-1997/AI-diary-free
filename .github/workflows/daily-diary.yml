@@ -1,0 +1,44 @@
+name: 毎日の日記まとめ
+
+# 実行タイミング
+on:
+  schedule:
+    - cron: "0 14 * * *"   # 毎日 14:00 UTC = 23:00 JST
+  workflow_dispatch:        # 手動実行ボタン（テスト用）
+
+# このワークフローに必要な権限
+permissions:
+  contents: write   # 生成した日記ファイルをコミットするため
+  issues: write     # メモIssueに返信・クローズするため
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+
+      - name: Python を準備
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 日記を生成
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}     # 任意。未設定なら既定モデル
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python scripts/generate_diary.py
+
+      - name: 生成物をコミット＆プッシュ
+        run: |
+          git config user.name "AI Diary Bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "変更なし。コミットしません。"
+          else
+            git commit -m "日記: $(TZ=Asia/Tokyo date +%Y-%m-%d)"
+            git push
+          fi
